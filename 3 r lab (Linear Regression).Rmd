@@ -1,0 +1,135 @@
+---
+title: "3 r lab"
+author: "Yijun Shen"
+date: "4/18/2022"
+output: html_document
+---
+
+```{r }
+library(MASS)
+library(ISLR)
+```
+
+Simple linear regression:
+
+```{r}
+#boston is a dataset from mass
+fix(Boston)
+names(Boston)#columns
+lm.fit=lm(medv~lstat, data=Boston)
+lm.fit
+summary(lm.fit)#summary statistics of lm
+coef(lm.fit)
+confint(lm.fit, level=0.95)#confident interval for coefficient estimates
+?predict
+predict(lm.fit, data.frame(lstat=c(5, 10, 15)), interval="confidence")
+#confident interval: 5, 10, 15 is the value for x
+#95% prediction interval is (24.47, 25.63), and y is predicted 25.05 when x equals to 10
+predict(lm.fit, data.frame(lstat=c(5, 10, 15)), interval="prediction")#prediction interval
+#95% prediction interval is (12.827626, 37.27907), and medv is predicted 25.05 when lstat equals to 10
+```
+
+plot for least squares regression line:
+
+```{r }
+attach(Boston)#attach the data so you dont need to specify the dataset each times
+plot(lstat,medv)+abline(lm.fit)#draw any line, lwd command the width of the regression line
+abline(lm.fit, lwd=3, col="red")
+plot(lstat,medv, col="red", pch=20)#pch: different plotting symbols
+plot(lstat,medv, col="red", pch="+")
+plot(1:20,1:20, pch=1:20)
+
+par(mfrow=c(2,2))# able to split the display screen into separate panels for multiple plots, 2 x 2 in this one
+plot(lm.fit)
+```
+
+residuals for linear regression fit:
+
+```{r}
+residuals(lm.fit)#residuals
+rstudent(lm.fit)#studentized residuals: studentized residual is the quotient resulting from the division of a residual by an estimate of its standard deviation. 
+
+plot(predict(lm.fit), residuals(lm.fit))
+plot(predict(lm.fit), rstudent(lm.fit))
+plot(hatvalues(lm.fit))#hatvalues for leverage statistics
+#leverage: how far one observation away from other observations, high leverage means outliers
+which.max(hatvalues(lm.fit))
+
+```
+
+Multiple Linear Regression:
+
+```{r}
+lm.fit1=lm(medv~lstat+age, data=Boston)
+summary(lm.fit1)
+
+lm.fit2=lm(medv~lstat+., data=Boston)#. here repreesnt all other variables
+summary(lm.fit2)
+
+library(car)
+vif(lm.fit2)
+lm.fit3=lm(medv~.-age, data=Boston)# all but age
+summary(lm.fit3)
+#or to use update instead of rewrite
+lm.fit3=update(lm.fit2, ~.-age)
+```
+
+Interaction Terms:
+
+```{r}
+summary(lm(medv~lstat*age, data=Boston))#interaction terms using *
+```
+
+Non-linear Transformations of the Predictors:
+
+```{r}
+lm.fit5=lm(medv~lstat+I(lstat^2))#I() is needed because ^ is special
+summary(lm.fit5)
+
+lm.fit6=lm(medv~lstat)
+anova(lm.fit6, lm.fit5)
+#anava funcation to quantify the extent to which the quadratic fit is superior to the linear fit
+#model 1 is the linear submodel with only one predictor lstat
+#while model 2 corresponds to the larger quandratic model that has two predictors lstat and lstat^2
+# it is a hypothesis comparing two models, and H0: fit data equally well
+#the p value here is small, so the second model is much better
+
+par(mfrow=c(2,2))
+plot(lm.fit5)
+
+
+#cubic fit:
+
+lm.fit7=lm(medv~poly(lstat, 5))#poly is to create the polynomial within lm()
+summary(lm.fit7)#lstat level 1 to 5 
+summary(lm(medv~log(rm), data=Boston))# with log transformation
+```
+
+Qualitative Predictors:
+
+```{r}
+names(Carseats)# a dataset from ISLR
+lm.fit=lm(Sales~.+Income:Advertising+Price:Age, data=Carseats)#other way to conduct interaction terms
+#x1:x2 = x2/x1, and R generate dummy variables automatically
+summary(lm.fit)
+
+attach(Carseats)
+contrasts(ShelveLoc)#show the coding for dummy variables
+
+
+```
+
+Writing function:write our own function
+
+```{r}
+#simple function 1:
+#reads in the ISLR and MASS libraries: loadlibraries
+LoadLibraries= function(){
+library(MASS)
+library(ISLR)
+print("the libraries have been loaded.")
+}
+
+LoadLibraries()#done!
+```
+

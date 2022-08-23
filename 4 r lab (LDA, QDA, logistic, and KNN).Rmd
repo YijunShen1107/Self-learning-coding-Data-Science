@@ -1,0 +1,206 @@
+---
+title: "4 r lab"
+output: html_document
+---
+
+
+data preparation
+```{r setup, include=FALSE}
+library(ISLR)
+#lag1-5: 5 trading days' percentage return
+#Volume: # of shares traded on the previous day
+#Today: percentage return on the date 
+#Direction: the market is up or down on the date
+names(Smarket)#the smarket data is inside of ISLR package
+#it shows the column names for stock market
+dim(Smarket)#return observation number and column number
+summary(Smarket)
+pairs(Smarket)# return various matrix of scatterplots for the data
+cor(Smarket[,-9])#produce a matrix contain all correlation produced by pairs
+
+attach(Smarket)#attach the data to default
+plot(Volume)#plot volume column of smarket
+```
+
+logistic regression: glm() function - generalized linear model, includes logistic regression
+
+```{r}
+glm.fit = glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5 + Volume, data=Smarket, family = binomial)# here the binomial of family specify R to run logistic regression instead of other linear model. 
+summary(glm.fit)
+#bc the p value for every variable is large, we check the coefficient
+coef(glm.fit)#way 1
+summary(glm.fit)$coef#way 2
+
+#prediction
+glm.probs=predict(glm.fit, type="response")# here type=response to tell R to output probabilities of the form P(Y = 1|X), basically when y = 1, possible x outcome. the probability that the market will go up given values of the predictors. 
+glm.probs# 1250天，每天股票增长的概率
+glm.probs[1:10]
+contrasts(Direction)#here we can tell that the probabilities are going up instead of down becuase the dummy variable for up is 1, when we have P(Y = 1|X)
+
+#predict whether the market will go up or down on a particular day
+glm.pred=rep("Down",1250)#creates a vestor of all 1250 down elements
+glm.pred[glm.probs>0.5]="Up" #teach R when to tranform down elements to up elements
+table(glm.pred, Direction)
+(145+507)/1250#successful prediction range, way1
+mean(glm.pred == Direction)#way2
+#1-0.5216 == training error rate
+
+#We are going to saperate the data into 2001~2004(training data) and 2005(testing data)
+train=(Smarket$Year < 2005)#train is a boolean vector, eaither true or false
+Smarket.2005<-Smarket[!train, ]#here because train is a boolean vector, !train would pick up false vector which are equal to 2005
+dim(Smarket.2005)
+Direction.2005<-Direction[!train]#create direfction variable for test data for later use
+
+glm.fit = glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5 + Volume, data=Smarket, family = binomial, subset = train)#train
+#subset here to use boolean to select those only before 2005
+glm.probs=predict(glm.fit, Smarket.2005,type="response")#test: use glm.fit to predict smarket.2005
+#obtain predicted probabilities of the stock market for days in 2005
+glm.pred=rep("Down", 252)#only has 252 observations in the test data
+glm.pred[glm.probs>0.5]="Up"
+table(glm.pred, Direction.2005)#用glm.pred的预测结果与实际的2005以后的data（Direction.2005)做对比
+mean(glm.pred == Direction.2005)# worse than random guess
+
+
+glm.fit = glm(Direction~Lag1+Lag2, data=Smarket, family = binomial, subset = train)#train: eliminate variables
+glm.probs=predict(glm.fit, Smarket.2005,type="response")
+glm.pred=rep("Down", 252)
+glm.pred[glm.probs>0.5]="Up"
+table(glm.pred, Direction.2005)
+mean(glm.pred == Direction.2005)
+#the accuracy is better when eliminate other variable
+
+predict(glm.fit, newdata=data.frame(Lag1=c(1.2,1.5), Lag2=c(1.1, -0.8)), type="response")
+#predict Direction variable on a day when Lag1 and 2 equal 1.2 and 1.1, and on a day when they equal to 1.5 & 0.8, here is the result. 
+
+```
+
+Linear discriminant Analysis (LDA): lda()
+
+```{r}
+library(MASS)
+lda.fit=lda(Direction~Lag1+Lag2, data=Smarket, subset=train)
+lda.fit
+# means that 49.1984% of the training observations correspond to days during which market went down
+plot(lda.fit)
+
+lda.pred=predict(lda.fit, Smarket.2005)# smarket.2005 was created in logistic section
+names(lda.pred)
+# class: LDA's prediction about the movement of market, 
+#Posterior: matrix those kth column contains the posterior probability that corresponding to observations that belongs to the kth class
+#x: contains the linear discriminants, which is -0.643 * Lag1 - 0.514 * Lag2
+
+lda.class=lda.pred$class # LDA prediction
+table(lda.class, Direction.2005)
+mean(lda.class == Direction.2005)
+
+#apply a 50% threshold to the posterior probabilities allows to recreate the predictions contained in lda.pred$class
+#recreate threshold help us to have preference, such as when the credit card default example
+sum(lda.pred$posterior[,1]>=0.5)
+sum(lda.pred$posterior[,1]<0.5)
+#check the posterior probability output with new threshold
+lda.pred$posterior[1:20, 1]
+lda.class[1:20]
+#try 90% treshold
+sum(lda.pred$posterior[,1]>0.9)
+#no days in 2005 meet the threshold, the greatest threshold(posterior probability) was 52.05%
+```
+
+
+
+
+Quadratic Discriminant Analysis(QDA): qda() in MASS library
+```{r}
+qda.fit=qda(Direction~Lag1 + Lag2, data=Smarket, subset=train)
+qda.fit
+qda.class=predict(qda.fit, Smarket.2005)$class# smarket.2005 was created in logistic section
+#names(qda.class)#compare with LDA no posterior, bc no coefficients of the linear discriminants since it is quadratic
+table(qda.class,Direction.2005)
+mean(qda.class==Direction.2005)
+#the QDA prediction is correct 60% of the time, impressive for stock market prediction. 
+```
+
+
+
+
+K-Nearest Neighbors: knn() in class library
+--different with other approach in that rather than a two-step which fit the model first than use model for prediction, knn direction forms predictions with four input
+   --a matrix containing the predictors associated with the training data: train.X
+   --a matrix containing the predictors asscoiated with the prediction of the test data: test.X
+   --a vector containing the class labels for the training observations: train.Direction
+   --a value for K, the number of nearest neighbors to be used by the classifier.
+```{r}
+#need to first bind variables for prediction
+library(class)
+train.x=cbind(Lag1, Lag2)[train,]#train bind predictions before 2005
+test.x=cbind(Lag1, Lag2)[!train,]#test bind predictions in 2005
+train.Direction=Direction[train]#train Y 
+
+#Now use knn to predict market movement for the dates in 2005
+set.seed(123)
+knn.pred=knn(train.x, test.x, train.Direction, k=1)# k ==1
+table(knn.pred, Direction.2005)
+mean(knn.pred==Direction.2005)#50% prediction
+
+set.seed(123)
+knn.pred=knn(train.x, test.x, train.Direction, k=3)# k ==3
+table(knn.pred, Direction.2005)
+mean(knn.pred==Direction.2005)#53% prediction
+#seems like increasing k increasing accuracy
+
+```
+
+Example with KNN using Caravan Insurance Data
+```{r}
+dim(Caravan)#5822 observations with 86 variables
+attach(Caravan)
+summary(Purchase)
+348/5822#only 6% people purchase the insurance
+
+#larger scale for variables means larger effect, such as 1000 difference on salary is more driven KNN result than 50 years difference on age
+#inorder to solve such scale problem, need to standardize the data so that all variable have a mean of zero and a standard deviation of one, then they will be compared in the same scale
+standardized.x=scale(Caravan[, -86])#exclude column 86 since it is the qulitative "purchase" variable
+
+# can see the variance change here:
+var(Caravan[,1])
+var(Caravan[,2])
+var(standardized.x[,1])
+var(standardized.x[,2])
+#the number here represents different variables(columns), now their variances are the same
+
+#now we are going to split observations into test set and train set
+test=1:1000#set a test data
+train.x=standardized.x[-test,]#train set is going to be the rest of 5822-1000 variables
+test.x=standardized.x[test,]
+train.y=Purchase[-test]# response train variable
+test.y=Purchase[test]#actual test response variable
+
+#now we can start KNN
+set.seed(123)
+knn.pred=knn(train.x, test.x, train.y, k=1)
+mean(test.y!=knn.pred)#test error rate
+mean(test.y!="No")
+table(knn.pred, test.y)#compare actual test response variable to the predictive test response variable
+
+knn.pred=knn(train.x, test.x, train.y, k=3)
+table(knn.pred, test.y)
+mean(test.y!=knn.pred)#error rate decrease
+
+knn.pred=knn(train.x, test.x, train.y, k=5)
+table(knn.pred, test.y)
+mean(test.y!=knn.pred)#error rate decrease as k increases
+
+
+#Compare to logistic regression model
+glm.fit=glm(Purchase~., data=Caravan, family = binomial, subset=-test)#create the training method
+glm.probs=predict(glm.fit, Caravan[test,], type="response")# no need to scale it since it is not knn
+glm.pred=rep("No", 1000)
+#threshold 0.5
+glm.pred[glm.probs>0.5] = "Yes"
+table(glm.pred, test.y)
+mean(glm.pred != test.y)# error rate 0.066
+#threshold 0.25
+glm.pred[glm.probs>0.25] = "Yes"
+table(glm.pred, test.y)
+mean(glm.pred != test.y)# error rate 0.07
+
+```
